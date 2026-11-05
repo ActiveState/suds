@@ -19,6 +19,7 @@ Contains basic caching classes.
 """
 
 import os
+import shutil
 import suds
 import tempfile
 from suds.transport import *
@@ -313,7 +314,8 @@ class FileCache(Cache):
         remove_default_location_on_exit class attribute.
         """
         if FileCache.remove_default_location_on_exit:
-            import shutil
+            # shutil is imported at module level, not here: an on-demand
+            # import during interpreter shutdown can fail (upstream 384c30d).
             shutil.rmtree(FileCache.__default_location, ignore_errors=True)
     
     def __fn(self, id):
