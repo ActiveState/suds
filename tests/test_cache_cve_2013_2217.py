@@ -37,8 +37,20 @@ def test_explicit_location_is_respected(tmpdir):
     assert cache.get('x') == {'a': 1}
 
 
-def test_planted_pickle_in_old_location_is_not_loaded():
-    old = os.path.join(tempfile.gettempdir(), 'suds')
+def test_planted_pickle_in_old_location_is_not_loaded(tmpdir, monkeypatch):
+    # Simulate another local user pre-creating the old fixed location and
+    # planting a pickle there for the key the client will look up.
+    import pickle
+    fake_tmp = tmpdir.mkdir('systmp')
+    old = fake_tmp.mkdir('suds')
+    planted = ObjectCache(location=str(old), days=1)
+    planted.put('wsdl-key', {'planted': True})
+    assert planted.get('wsdl-key') == {'planted': True}
+
+    monkeypatch.setattr(tempfile, 'gettempdir', lambda: str(fake_tmp))
+    # suds 0.4 bound gettempdir at import time as suds.cache.tmp.
+    import suds.cache
+    monkeypatch.setattr(suds.cache, 'tmp', lambda: str(fake_tmp), raising=False)
     cache = ObjectCache(days=1)
-    assert not cache.location.startswith(old + os.sep)
-    assert cache.get('planted') is None
+    assert not cache.location.startswith(str(old))
+    assert cache.get('wsdl-key') is None
