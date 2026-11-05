@@ -13,6 +13,15 @@ For details, visit:
 RELEASE-NOTES:
 =================================================
 
+version 0.4.post1 (ActiveState security release, 2026-11-05):
+  * CVE-2013-2217: FileCache, and so the default ObjectCache that Client
+    uses, no longer defaults to the fixed, shared directory <tmp>/suds,
+    where another local user could plant cache files (pickles that
+    ObjectCache would load) or symlinks.  The default is now a private
+    per-process directory from tempfile.mkdtemp(), removed at exit unless
+    FileCache.remove_default_location_on_exit is False.  Ported from
+    suds-jurko f7ceee8.
+
 version 0.3.6 (04-31-09):
   * Change hard coded /tmp/suds to tempfile.gettempdir() and create suds/ on demand.
   * Fix return type for Any.get_attribute().

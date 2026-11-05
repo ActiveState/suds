@@ -20,7 +20,7 @@ Contains basic caching classes.
 
 import os
 import suds
-from tempfile import gettempdir as tmp
+import tempfile
 from suds.transport import *
 from suds.sax.parser import Parser
 from suds.sax.element import Element
@@ -124,12 +124,22 @@ class FileCache(Cache):
     @type duration: (unit, value)
     @ivar location: The directory for the cached files.
     @type location: str
+    @cvar remove_default_location_on_exit: Whether to remove the default
+        cache location on process exit (default=True).
+    @type remove_default_location_on_exit: bool
     """
     fnprefix = 'suds'
     units = ('months', 'weeks', 'days', 'hours', 'minutes', 'seconds')
+    __default_location = None
+    remove_default_location_on_exit = True
     
     def __init__(self, location=None, **duration):
         """
+        If no cache location is specified, a private temporary directory,
+        created with tempfile.mkdtemp() (mode 0700, unpredictable name), is
+        used.  It is shared by every FileCache with no explicit location
+        within the same process and removed on process exit unless
+        remove_default_location_on_exit is set to False (CVE-2013-2217).
         @param location: The directory for the cached files.
         @type location: str
         @param duration: The cached file duration which defines how
@@ -138,7 +148,7 @@ class FileCache(Cache):
         @type duration: {unit:value}
         """
         if location is None:
-            location = os.path.join(tmp(), 'suds')
+            location = FileCache.__get_default_location()
         self.location = location
         self.duration = (None, 0)
         self.setduration(**duration)
@@ -278,6 +288,33 @@ class FileCache(Cache):
             f = self.open(path, 'w')
             f.write(suds.__version__)
             f.close()        
+    
+    @staticmethod
+    def __get_default_location():
+        """
+        Get the current process's default cache location, creating it on
+        first use.  The old fixed default (<tmp>/suds) could be pre-created
+        or symlinked by another local user, who could then plant pickles
+        that ObjectCache would load (CVE-2013-2217).
+        @return: The default cache directory.
+        @rtype: str
+        """
+        if not FileCache.__default_location:
+            FileCache.__default_location = \
+                tempfile.mkdtemp(suffix='suds-default-cache')
+            import atexit
+            atexit.register(FileCache.__remove_default_location)
+        return FileCache.__default_location
+
+    @staticmethod
+    def __remove_default_location():
+        """
+        Remove the default cache location, unless disabled with the
+        remove_default_location_on_exit class attribute.
+        """
+        if FileCache.remove_default_location_on_exit:
+            import shutil
+            shutil.rmtree(FileCache.__default_location, ignore_errors=True)
     
     def __fn(self, id):
         name = id
